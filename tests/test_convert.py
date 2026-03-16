@@ -50,7 +50,8 @@ def test_md_to_html_bold():
 
 def test_md_to_html_code_block():
     html = _md_to_html("```python\nprint('hi')\n```")
-    assert "<code>" in html
+    assert "<pre>" in html
+    assert "<code" in html  # may include class="language-python"
 
 
 def test_md_to_html_table():
