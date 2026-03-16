@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "marksmith"
+dynamic = ["version"]
+description = "A markdown toolbox"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+keywords = ["markdown", "toolbox", "text", "formatting"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Markup",
+]
+dependencies = [
+    "markdown>=3.5",
+    "python-frontmatter>=1.0",
+    "python-docx>=1.1",
+    "beautifulsoup4>=4.12",
+]
+
+[project.scripts]
+marksmith = "marksmith.cli:main"
+
+[project.optional-dependencies]
+template = [
+    "docxtpl>=0.16",
+]
+dev = [
+    "pytest>=7",
+    "ruff",
+]
+
+[project.urls]
+Homepage = "https://github.com/tkdpython/marksmith"
+Repository = "https://github.com/tkdpython/marksmith"
+Issues = "https://github.com/tkdpython/marksmith/issues"
+
+[tool.hatch.version]
+path = "marksmith/__init__.py"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
