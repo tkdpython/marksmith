@@ -143,7 +143,9 @@ def _apply_core_properties(doc: Document, metadata: dict) -> None:
     if "description" in metadata:
         props.description = str(metadata["description"])
     if "version" in metadata:
-        props.revision = str(metadata["version"])
+        # revision must be a positive integer; convert floats/strings best-effort.
+        with contextlib.suppress(ValueError, TypeError):
+            props.revision = int(float(str(metadata["version"])))
     if "keywords" in metadata:
         props.keywords = str(metadata["keywords"])
 
