@@ -86,11 +86,12 @@ def test_md_to_docx_unsupported_format(tmp_path):
         md_to_docx(str(md_file), str(tmp_path / "output.txt"))
 
 
-def test_md_to_docx_template_raises_not_implemented(tmp_path):
+def test_md_to_docx_template_not_found(tmp_path):
+    pytest.importorskip("docxtpl")
     md_file = tmp_path / "test.md"
     md_file.write_text("# Hello")
-    with pytest.raises(NotImplementedError):
-        md_to_docx(str(md_file), str(tmp_path / "output.docx"), template_path="tmpl.docx")
+    with pytest.raises(FileNotFoundError, match="nonexistent_template.docx"):
+        md_to_docx(str(md_file), str(tmp_path / "output.docx"), template_path="nonexistent_template.docx")
 
 
 def test_md_to_docx_creates_file(tmp_path):

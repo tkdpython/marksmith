@@ -13,7 +13,7 @@
 pip install marksmith
 ```
 
-Optional extras for template support *(coming soon)*:
+Optional extras for template support:
 
 ```bash
 pip install marksmith[template]
@@ -37,8 +37,7 @@ python -m marksmith convert my-doc.md output.docx
 
 You can add a YAML front-matter block at the top of your Markdown file.
 The metadata is written to the DOCX core properties (title, author, etc.)
-and will be used to populate template placeholders once template support
-is available.
+and is also available as Jinja2 template variables when using `--template`.
 
 ```markdown
 ---
@@ -75,48 +74,63 @@ Content goes here...
 
 ---
 
-## Roadmap
+## Template support
 
-### Template support  *(next milestone)*
+Keep your content in plain Markdown while producing brand-consistent DOCX
+output from a corporate template.
 
-The goal is to allow teams to maintain brand-consistent DOCX output without
-leaving Markdown.  The workflow will be:
+```bash
+pip install marksmith[template]
+marksmith convert my-doc.md output.docx --template company-template.docx
+```
 
-1. A corporate `.docx` template carries the company's styles, logo, header,
-   footer, and cover page.  Jinja2-style tags act as placeholders:
+### How it works
+
+1. Create a `.docx` template in Word with Jinja2-style placeholders for
+   metadata sourced from your Markdown front-matter:
 
    ```jinja
    {{ title }}        {{ version }}      {{ author }}
    {{ date }}         {{ classification }}
    ```
 
-2. A special `{{ marksmith_content }}` tag marks the exact point in the
-   template where the converted Markdown body will be inserted.
+2. Add a `{{p marksmith_content }}` paragraph **alone on its own line** at the
+   exact point where the Markdown body should be inserted:
 
-3. Run the conversion:
-
-   ```bash
-   marksmith convert my-doc.md output.docx --template company-template.docx
+   ```text
+   {{p marksmith_content }}
    ```
 
-   marksmith will:
+   > **Important:** Use `{{p ... }}` (with the `p` modifier), not `{{ ... }}`.
+   > The `p` modifier inserts a paragraph-level sub-document rather than plain
+   > text, so all headings, lists, tables, and code blocks are preserved.
+
+3. Run the conversion — marksmith will:
    - Render all front-matter metadata into the Jinja2 placeholders.
-   - Convert the Markdown body to DOCX-native content.
-   - Insert the converted content at `{{ marksmith_content }}`.
-   - Save the merged document as `output.docx`.
+   - Convert the Markdown body to native DOCX content.
+   - Insert the body at `{{p marksmith_content }}`.
+   - Save the merged document.
 
-Implemented via [`docxtpl`](https://docxtpl.readthedocs.io/) — install the
-`marksmith[template]` extra when this ships.
+### Style inheritance
 
-### Planned future actions
+Content is inserted as a sub-document, so heading and paragraph styles are
+matched by name against those in your template.  If your template defines
+`Heading 1` with a custom font and colour, the converted content will pick
+it up automatically.
+
+---
+
+## Roadmap
 
 | Action | Description |
 | --- | --- |
-| `convert` | Markdown → DOCX *(available now)* |
-| `convert --template` | Merge into branded DOCX template *(coming soon)* |
+| `convert` | Markdown → DOCX ✔️ |
+| `convert --template` | Merge into branded DOCX template ✔️ |
 | `lint` | Validate Markdown style and structure |
 | `toc` | Generate / update table of contents |
 | `diff` | Show structural diff between two Markdown files |
+| Images | Embed local images via `run.add_picture()` |
+| Hyperlinks | Full OOXML hyperlink support |
 
 ---
 
@@ -125,7 +139,7 @@ Implemented via [`docxtpl`](https://docxtpl.readthedocs.io/) — install the
 ```bash
 git clone https://github.com/tkdpython/marksmith
 cd marksmith
-pip install -e .[dev]
+pip install -e .[dev,template]
 
 # Run tests
 pytest

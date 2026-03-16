@@ -5,8 +5,8 @@ Pipeline
 Markdown file  →  parse YAML front-matter  →  render Markdown body to HTML
 →  walk HTML tree  →  write python-docx Document  →  save .docx
 
-Supported Markdown elements (first implementation)
----------------------------------------------------
+Supported Markdown elements
+---------------------------
 * Headings  H1 – H6
 * Paragraphs with inline bold, italic, inline-code and links
 * Fenced and indented code blocks
@@ -28,28 +28,15 @@ The Markdown file may start with a YAML front-matter block delimited by
     classification: Internal
     ---
 
-All keys are available for template rendering (see *Template support* below).
+All keys are also available as Jinja2 variables when using a template
+(see ``marksmith.template``).
 
-Template support  (PLANNED — not yet implemented)
--------------------------------------------------
-A future ``--template`` option will accept a ``.docx`` file containing
-Jinja2-style placeholders populated from the front-matter metadata:
-
-    {{ title }}    {{ version }}    {{ author }}    {{ date }}
-
-A special ``{{ marksmith_content }}`` tag marks the point in the template
-at which the converted Markdown body will be inserted.  This will be
-implemented using ``docxtpl`` (python-docx-template) and requires the
-optional ``marksmith[template]`` extras.
-
-The intended workflow for producing branded company documents is:
-
-1. Author writes content in plain Markdown with a YAML front-matter header.
-2. A corporate ``.docx`` template carries the company's styles, logo, header,
-   footer, and cover page—with Jinja2 tags as placeholders.
-3. ``marksmith convert doc.md output.docx --template company.docx``
-   merges metadata into the template and inserts the body at
-   ``{{ marksmith_content }}``.
+Template support
+----------------
+Pass ``--template company.docx`` to merge front-matter metadata into a branded
+``.docx`` template and insert the Markdown body at a ``{{p marksmith_content }}``
+placeholder.  Requires ``pip install marksmith[template]``.
+See :mod:`marksmith.template` for full documentation.
 """
 
 from __future__ import annotations
@@ -72,6 +59,12 @@ _MD_EXTENSIONS = ["tables", "fenced_code", "sane_lists"]
 # Maximum list-nesting depth supported by the default DOCX styles.
 _MAX_LIST_DEPTH = 3
 
+# Optional template support — available when marksmith[template] is installed.
+try:
+    from marksmith import template as _template_module
+except ImportError:
+    _template_module = None  # type: ignore[assignment]
+
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
@@ -91,8 +84,10 @@ def md_to_docx(
         Destination path for the generated ``.docx`` file.  The parent
         directory is created automatically if it does not exist.
     template_path:
-        Optional path to a ``.docx`` template.  **Not yet implemented** —
-        passing a value raises ``NotImplementedError``.
+        Optional path to a ``.docx`` template file containing Jinja2-style
+        placeholders.  Requires ``pip install marksmith[template]``.
+        Use ``{{p marksmith_content }}`` in the template to mark the content
+        insertion point.  See :mod:`marksmith.template` for full details.
     """
     input_path = str(input_path)
     output_path = str(output_path)
@@ -105,10 +100,12 @@ def md_to_docx(
         raise ValueError(f"Unsupported output format '{suffix}'. Only .docx is currently supported.")
 
     if template_path is not None:
-        raise NotImplementedError(
-            "Template support is not yet implemented.  "
-            "It will be available in a future release via 'pip install marksmith[template]'."
-        )
+        if _template_module is None:
+            raise ImportError(
+                "Template support requires the 'docxtpl' package. Install it with: pip install marksmith[template]"
+            )
+        _template_module.md_to_docx_templated(input_path, output_path, template_path)
+        return
 
     with open(input_path, encoding="utf-8") as fh:
         raw = fh.read()
