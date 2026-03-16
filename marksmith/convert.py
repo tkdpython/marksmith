@@ -59,12 +59,6 @@ _MD_EXTENSIONS = ["tables", "fenced_code", "sane_lists"]
 # Maximum list-nesting depth supported by the default DOCX styles.
 _MAX_LIST_DEPTH = 3
 
-# Optional template support — available when marksmith[template] is installed.
-try:
-    from marksmith import template as _template_module
-except ImportError:
-    _template_module = None  # type: ignore[assignment]
-
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
@@ -100,11 +94,14 @@ def md_to_docx(
         raise ValueError(f"Unsupported output format '{suffix}'. Only .docx is currently supported.")
 
     if template_path is not None:
-        if _template_module is None:
+        try:
+            from marksmith.template import md_to_docx_templated  # noqa: PLC0415
+        except ImportError as exc:
             raise ImportError(
-                "Template support requires the 'docxtpl' package. Install it with: pip install marksmith[template]"
-            )
-        _template_module.md_to_docx_templated(input_path, output_path, template_path)
+                "Template support requires the 'docxtpl' and 'docxcompose' packages. "
+                "Install them with: pip install marksmith[template]"
+            ) from exc
+        md_to_docx_templated(input_path, output_path, template_path)
         return
 
     with open(input_path, encoding="utf-8") as fh:
