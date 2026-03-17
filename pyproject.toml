@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "marksmith"
 dynamic = ["version"]
-description = "A markdown toolbox"
+description = "A Markdown toolbox — convert, template, and publish Markdown documents"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
@@ -37,6 +37,13 @@ marksmith = "marksmith.cli:main"
 template = [
     "docxtpl>=0.16",
     "docxcompose>=1.4",
+]
+confluence = [
+    "md2cf>=2.4",
+    "atlassian-python-api>=3.41",
+    "python-dotenv>=1.0",
+    "mistune>=3.0",
+    "PyYAML>=6.0",
 ]
 dev = [
     "pytest>=7",

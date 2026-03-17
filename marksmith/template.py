@@ -30,7 +30,7 @@ Workflow
         ---
         title:          My Document
         version:        1.0
-        author:         Paul Cummings
+        author:         Fred Bloggs
         date:           2026-03-16
         classification: Internal
         ---

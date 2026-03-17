@@ -23,7 +23,7 @@ The Markdown file may start with a YAML front-matter block delimited by
     ---
     title:          My Document
     version:        1.0
-    author:         Paul Cummings
+    author:         Fred Bloggs
     date:           2026-03-16
     classification: Internal
     ---
@@ -49,6 +49,7 @@ import frontmatter
 import markdown
 from bs4 import BeautifulSoup, NavigableString, Tag
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
@@ -161,6 +162,28 @@ def _html_to_docx(html: str) -> Document:
 # ── Block-level element processors ───────────────────────────────────────────
 
 
+def _suppress_paragraph_numbering(para) -> None:
+    """Write numId=0 into the paragraph XML to disable style-linked numbering.
+
+    Word heading styles in branded templates commonly have an outline numbering
+    list attached.  Setting numId=0 at paragraph level overrides that, so the
+    heading text is rendered without an automatic number prefix regardless of
+    what the template style definition says.
+    """
+    pPr = para._p.get_or_add_pPr()
+    existing = pPr.find(qn("w:numPr"))
+    if existing is not None:
+        pPr.remove(existing)
+    numPr = OxmlElement("w:numPr")
+    ilvl = OxmlElement("w:ilvl")
+    ilvl.set(qn("w:val"), "0")
+    num_id = OxmlElement("w:numId")
+    num_id.set(qn("w:val"), "0")
+    numPr.append(ilvl)
+    numPr.append(num_id)
+    pPr.append(numPr)
+
+
 def _process_block(doc: Document, element: Tag | NavigableString, depth: int = 1) -> None:
     """Dispatch a single block-level HTML element to the appropriate handler."""
     if isinstance(element, NavigableString):
@@ -173,7 +196,12 @@ def _process_block(doc: Document, element: Tag | NavigableString, depth: int = 1
 
     if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
         level = int(tag[1])
-        doc.add_heading(element.get_text(strip=True), level=level)
+        para = doc.add_paragraph(style=f"Heading {level}")
+        _add_inline_content(para, element)
+        # Suppress any automatic numbering the template's heading style may
+        # define.  Setting numId=0 at paragraph level overrides style-linked
+        # outline numbering so the template doesn't double-number headings.
+        _suppress_paragraph_numbering(para)
 
     elif tag == "p":
         para = doc.add_paragraph()
@@ -185,10 +213,19 @@ def _process_block(doc: Document, element: Tag | NavigableString, depth: int = 1
     elif tag == "pre":
         code_el = element.find("code")
         code_text = code_el.get_text() if code_el else element.get_text()
+        # Strip a single trailing newline that the markdown renderer adds.
+        code_text = code_text.rstrip("\n")
         para = doc.add_paragraph(style="Normal")
-        run = para.add_run(code_text)
-        run.font.name = "Courier New"
-        run.font.size = Pt(9)
+        # Force left alignment — template styles may default to justify, which
+        # completely mangles ASCII art and code blocks.
+        para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        lines = code_text.split("\n")
+        for i, line in enumerate(lines):
+            run = para.add_run(line)
+            run.font.name = "Courier New"
+            run.font.size = Pt(9)
+            if i < len(lines) - 1:
+                run.add_break()
 
     elif tag == "blockquote":
         _process_blockquote(doc, element)
@@ -271,6 +308,7 @@ def _process_table(doc: Document, element: Tag) -> None:
             docx_cell = table.rows[row_idx].cells[col_idx]
             docx_cell.text = ""
             para = docx_cell.paragraphs[0]
+            para.alignment = WD_ALIGN_PARAGRAPH.LEFT
             _add_inline_content(para, cell)
             if cell.name == "th":
                 for run in para.runs:
@@ -326,7 +364,7 @@ def _add_inline_content_node(para, node) -> None:  # noqa: PLR0911
     if tag == "code":
         run = para.add_run(node.get_text())
         run.font.name = "Courier New"
-        run.font.size = Pt(9)
+        run.font.size = Pt(10)
         return run
 
     if tag in ("del", "s"):

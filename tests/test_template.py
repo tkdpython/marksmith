@@ -66,7 +66,7 @@ def test_template_all_metadata_placeholders(tmp_path):
         "---\n"
         "title: Full Test\n"
         "version: 2.0\n"
-        "author: Paul Cummings\n"
+        "author: Fred Bloggs\n"
         "date: 2026-03-16\n"
         "classification: Internal\n"
         "---\n\n"

@@ -1,6 +1,8 @@
 """Tests for marksmith.convert."""
 
 import pytest
+from docx import Document as DocxDocument
+from docx.shared import Pt
 
 from marksmith.convert import _md_to_html, _parse_frontmatter, md_to_docx
 
@@ -159,3 +161,23 @@ def hello():
     md_to_docx(str(md_file), str(output_file))
     assert output_file.exists()
     assert output_file.stat().st_size > 0
+
+
+def test_heading_with_inline_code_preserves_spaces(tmp_path):
+    """Inline code within a heading must not strip surrounding spaces.
+
+    Regression test: get_text(strip=True) was concatenating text nodes without
+    separators, turning '3.2 `nat_api_server` Shared Library' into
+    '3.2nat_api_serverShared Library'.
+    """
+    md_file = tmp_path / "heading_code.md"
+    md_file.write_text("## 3.2 `nat_api_server` Shared Library\n")
+    output_file = tmp_path / "heading_code.docx"
+    md_to_docx(str(md_file), str(output_file))
+
+    doc = DocxDocument(str(output_file))
+    heading_text = doc.paragraphs[0].text
+    assert heading_text == "3.2 nat_api_server Shared Library"
+    # The inline-code run must be 10pt, not the full heading size.
+    code_run = next(r for r in doc.paragraphs[0].runs if "nat_api_server" in r.text)
+    assert code_run.font.size == Pt(10)
