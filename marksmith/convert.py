@@ -282,21 +282,7 @@ def _process_block(doc: Document, element: Tag | NavigableString, depth: int = 1
         _process_list(doc, element, ordered=(tag == "ol"), depth=depth)
 
     elif tag == "pre":
-        code_el = element.find("code")
-        code_text = code_el.get_text() if code_el else element.get_text()
-        # Strip a single trailing newline that the markdown renderer adds.
-        code_text = code_text.rstrip("\n")
-        para = doc.add_paragraph(style="Normal")
-        # Force left alignment — template styles may default to justify, which
-        # completely mangles ASCII art and code blocks.
-        para.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        lines = code_text.split("\n")
-        for i, line in enumerate(lines):
-            run = para.add_run(line)
-            run.font.name = "Courier New"
-            run.font.size = Pt(9)
-            if i < len(lines) - 1:
-                run.add_break()
+        _process_code_block(doc, element)
 
     elif tag == "blockquote":
         _process_blockquote(doc, element)
@@ -337,6 +323,35 @@ def _process_list(
             child_tag = getattr(child, "name", None)
             if child_tag in ("ul", "ol"):
                 _process_list(doc, child, ordered=(child_tag == "ol"), depth=depth + 1)
+
+
+def _process_code_block(doc: Document, element: Tag) -> None:
+    """Render a ``<pre>`` block using the ``code-block`` style if available, else ``Normal`` with Courier New."""
+    code_el = element.find("code")
+    code_text = code_el.get_text() if code_el else element.get_text()
+    # Strip a single trailing newline that the markdown renderer adds.
+    code_text = code_text.rstrip("\n")
+    # Use the 'code-block' paragraph style if available in the document
+    # (e.g. defined in a branded template), otherwise fall back to Normal
+    # with manual Courier New font formatting.
+    try:
+        doc.styles["code-block"]
+        para = doc.add_paragraph(style="code-block")
+        use_code_block_style = True
+    except KeyError:
+        para = doc.add_paragraph(style="Normal")
+        use_code_block_style = False
+    # Force left alignment — template styles may default to justify, which
+    # completely mangles ASCII art and code blocks.
+    para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    lines = code_text.split("\n")
+    for i, line in enumerate(lines):
+        run = para.add_run(line)
+        if not use_code_block_style:
+            run.font.name = "Courier New"
+            run.font.size = Pt(9)
+        if i < len(lines) - 1:
+            run.add_break()
 
 
 def _process_blockquote(doc: Document, element: Tag) -> None:
@@ -434,8 +449,14 @@ def _add_inline_content_node(para, node) -> None:  # noqa: PLR0911
 
     if tag == "code":
         run = para.add_run(node.get_text())
-        run.font.name = "Courier New"
-        run.font.size = Pt(10)
+        # Use the 'code' character style if available in the document
+        # (e.g. defined in a branded template), otherwise fall back to manual
+        # Courier New font formatting.
+        try:
+            run.style = para.part.document.styles["code"]
+        except KeyError:
+            run.font.name = "Courier New"
+            run.font.size = Pt(10)
         return run
 
     if tag in ("del", "s"):
