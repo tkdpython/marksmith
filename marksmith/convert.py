@@ -1,4 +1,4 @@
-"""Markdown to DOCX conversion for marksmith.
+r"""Markdown to DOCX conversion for marksmith.
 
 Pipeline
 --------
@@ -32,7 +32,7 @@ The Markdown file may start with a YAML front-matter block delimited by
 .. note::
    Always use **single quotes** around ``docx-path`` values on Windows.
    In YAML double-quoted strings, backslashes are escape characters
-   (e.g. ``\N`` becomes Unicode U+0085).  Single-quoted strings treat # type: ignore
+   (e.g. ``\\N`` becomes Unicode U+0085).  Single-quoted strings treat
    backslashes as literal characters.
 
 The special ``docx-path`` key sets the default output path for the
