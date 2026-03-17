@@ -15,7 +15,7 @@ import os
 import sys
 
 from marksmith import __version__
-from marksmith.convert import md_to_docx
+from marksmith.convert import find_files_with_docx_path, md_to_docx, read_docx_path
 
 
 def main() -> None:
@@ -37,12 +37,23 @@ def main() -> None:
     )
     subparsers.required = True
 
-    # ── convert ──────────────────────────────────────────────────────────────
-    convert_parser = subparsers.add_parser(
-        "convert",
-        help="Convert a Markdown file to another format (currently: .docx)",
+    # ── to-docx ──────────────────────────────────────────────────────────────
+    docx_parser = subparsers.add_parser(
+        "to-docx",
+        help="Convert Markdown file(s) to DOCX",
         description=(
             "Convert a Markdown file to a DOCX document.\n\n"
+            "OUTPUT PATH\n"
+            "  Provide an explicit output path as the second argument, or omit\n"
+            "  it and set 'docx-path' in the file's YAML front-matter.\n"
+            "  Environment variables in the path are expanded automatically:\n\n"
+            "    ---\n"
+            "    docx-path: '%MY_DOCS%\\\\Reports\\\\myfile.docx'\n"
+            "    ---\n\n"
+            "DIRECTORY MODE\n"
+            "  Use --directory to recursively convert an entire directory tree.\n"
+            "  Only files with 'docx-path' set in their front-matter are\n"
+            "  converted; all others are silently skipped.\n\n"
             "FRONT-MATTER METADATA\n"
             "  The Markdown file may begin with a YAML front-matter block\n"
             "  (between '---' delimiters) containing document metadata:\n\n"
@@ -53,9 +64,7 @@ def main() -> None:
             "    date: 2026-03-16\n"
             "    classification: Internal\n"
             "    ---\n\n"
-            "  Without a template, metadata is written to the DOCX core\n"
-            "  properties (title, author, etc.).\n\n"
-            "TEMPLATE SUPPORT  (coming soon — requires: pip install marksmith[template])\n"
+            "TEMPLATE SUPPORT  (requires: pip install marksmith[template])\n"
             "  Provide a .docx template containing Jinja2-style placeholders\n"
             "  sourced from the front-matter metadata, e.g.:\n\n"
             "    {{ title }}   {{ version }}   {{ author }}   {{ date }}\n\n"
@@ -65,15 +74,29 @@ def main() -> None:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    convert_parser.add_argument(
+    docx_parser.add_argument(
         "input",
-        help="Path to the input Markdown (.md) file",
+        nargs="?",
+        default=None,
+        help=("Path to the input Markdown (.md) file. Omit when using --directory."),
     )
-    convert_parser.add_argument(
+    docx_parser.add_argument(
         "output",
-        help="Path to the output file (.docx)",
+        nargs="?",
+        default=None,
+        help=("Path to the output .docx file. If omitted, the 'docx-path' key from the file's front-matter is used."),
     )
-    convert_parser.add_argument(
+    docx_parser.add_argument(
+        "--directory",
+        metavar="DIR",
+        default=None,
+        help=(
+            "Recursively convert all .md files under DIR that have a "
+            "'docx-path' key in their front-matter. "
+            "Cannot be used together with a positional input file."
+        ),
+    )
+    docx_parser.add_argument(
         "--template",
         metavar="TEMPLATE",
         default=None,
@@ -81,10 +104,11 @@ def main() -> None:
             "Path to a .docx template file.  Placeholders in the template "
             "are filled from YAML front-matter metadata and the converted "
             "Markdown body is inserted at {{ marksmith_content }}. "
-            "(Requires: pip install marksmith[template] — not yet implemented.)"
+            "If omitted, the MARKSMITH_TEMPLATE environment variable is used "
+            "if set.  (Requires: pip install marksmith[template])"
         ),
     )
-    convert_parser.set_defaults(func=_cmd_convert)
+    docx_parser.set_defaults(func=_cmd_to_docx)
 
     # ── to-confluence ──────────────────────────────────────────────────────────
     confluence_parser = subparsers.add_parser(
@@ -139,11 +163,65 @@ def main() -> None:
     args.func(args)
 
 
-def _cmd_convert(args: argparse.Namespace) -> None:
-    """Handle the 'convert' action."""
+def _cmd_to_docx(args: argparse.Namespace) -> None:
+    """Handle the 'to-docx' action."""
+    # ── resolve template: explicit arg wins over MARKSMITH_TEMPLATE env var ───
+    template = args.template or os.environ.get("MARKSMITH_TEMPLATE") or None
+
+    # ── validate argument combinations ───────────────────────────────────────
+    if args.directory and args.input:
+        print("Error: --directory cannot be used together with a positional input file.", file=sys.stderr)  # noqa: T201
+        sys.exit(1)
+    if not args.directory and not args.input:
+        print("Error: provide an input file or use --directory.", file=sys.stderr)  # noqa: T201
+        sys.exit(1)
+
+    # ── directory mode ───────────────────────────────────────────────────────
+    if args.directory:
+        try:
+            files = find_files_with_docx_path(args.directory)
+        except NotADirectoryError as exc:
+            print(f"Error: {exc}", file=sys.stderr)  # noqa: T201
+            sys.exit(1)
+
+        if not files:
+            print(f"No .md files with 'docx-path' found under '{args.directory}'.")  # noqa: T201
+            return
+
+        errors = 0
+        for input_path, output_path in files:
+            try:
+                md_to_docx(input_path, output_path, template_path=template)
+                print(f"  ✓  '{input_path}'  →  '{output_path}'")  # noqa: T201
+            except Exception as exc:  # noqa: BLE001
+                print(f"  ✗  '{input_path}': {exc}", file=sys.stderr)  # noqa: T201
+                errors += 1
+
+        total = len(files)
+        print(f"\nDone: {total - errors}/{total} file(s) converted.")  # noqa: T201
+        if errors:
+            sys.exit(1)
+        return
+
+    # ── single file mode ───────────────────────────────────────────────────────
+    output = args.output
+    if not output:
+        try:
+            output = read_docx_path(args.input)
+        except FileNotFoundError as exc:
+            print(f"Error: {exc}", file=sys.stderr)  # noqa: T201
+            sys.exit(1)
+
+    if not output:
+        print(  # noqa: T201
+            f"Error: no output path given and no 'docx-path' found in the front-matter of '{args.input}'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     try:
-        md_to_docx(args.input, args.output, template_path=args.template)
-        print(f"\u2713  Converted '{args.input}'  \u2192  '{args.output}'")  # noqa: T201
+        md_to_docx(args.input, output, template_path=template)
+        print(f"✓  '{args.input}'  →  '{output}'")  # noqa: T201
     except FileNotFoundError as exc:
         print(f"Error: {exc}", file=sys.stderr)  # noqa: T201
         sys.exit(1)

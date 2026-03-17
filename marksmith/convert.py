@@ -26,7 +26,18 @@ The Markdown file may start with a YAML front-matter block delimited by
     author:         Fred Bloggs
     date:           2026-03-16
     classification: Internal
+    docx-path:      '%MY_DOCS%\\Reports\\myfile.docx'
     ---
+
+.. note::
+   Always use **single quotes** around ``docx-path`` values on Windows.
+   In YAML double-quoted strings, backslashes are escape characters
+   (e.g. ``\N`` becomes Unicode U+0085).  Single-quoted strings treat # type: ignore
+   backslashes as literal characters.
+
+The special ``docx-path`` key sets the default output path for the
+``to-docx`` command.  Environment variables in the path (``%VAR%`` on
+Windows, ``$VAR`` on Linux/macOS) are expanded automatically.
 
 All keys are also available as Jinja2 variables when using a template
 (see ``marksmith.template``).
@@ -62,6 +73,66 @@ _MAX_LIST_DEPTH = 3
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
+
+def read_docx_path(input_path: str) -> str | None:
+    """Return the expanded ``docx-path`` from a Markdown file's front-matter.
+
+    Reads only the front-matter block — does not parse the full document.
+    Environment variables in the path are expanded (``%VAR%`` on Windows,
+    ``$VAR`` on Linux/macOS).
+
+    Parameters
+    ----------
+    input_path:
+        Path to the ``.md`` file.
+
+    Returns
+    -------
+    str or None
+        The expanded destination path, or ``None`` if ``docx-path`` is not
+        set in the front-matter.
+
+    """
+    with open(input_path, encoding="utf-8") as fh:
+        raw = fh.read()
+    metadata, _ = _parse_frontmatter(raw)
+    raw_path = metadata.get("docx-path")
+    if not raw_path:
+        return None
+    return os.path.expandvars(str(raw_path))
+
+
+def find_files_with_docx_path(directory: str) -> list[tuple[str, str]]:
+    """Recursively find all Markdown files in *directory* that have ``docx-path`` set.
+
+    Parameters
+    ----------
+    directory:
+        Root directory to search.
+
+    Returns
+    -------
+    list of (input_path, output_path) tuples
+        Each tuple contains the absolute path to the ``.md`` file and the
+        fully expanded ``docx-path`` destination.
+
+    Raises
+    ------
+    NotADirectoryError
+        If *directory* does not exist or is not a directory.
+
+    """
+    root = Path(directory)
+    if not root.is_dir():
+        raise NotADirectoryError(f"Not a directory: {directory}")
+
+    results: list[tuple[str, str]] = []
+    for md_file in sorted(root.rglob("*.md")):
+        docx_path = read_docx_path(str(md_file))
+        if docx_path:
+            results.append((str(md_file), docx_path))
+    return results
 
 
 def md_to_docx(

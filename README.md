@@ -30,11 +30,17 @@ pip install marksmith[confluence]
 ## Quick start
 
 ```bash
-# Using the installed script
-marksmith convert my-doc.md output.docx
+# Explicit output path
+marksmith to-docx my-doc.md output.docx
+
+# Output path taken from docx-path in the file's front-matter
+marksmith to-docx my-doc.md
+
+# Recursively convert all .md files in a directory tree that have docx-path set
+marksmith to-docx --directory docs/
 
 # Or via python -m
-python -m marksmith convert my-doc.md output.docx
+python -m marksmith to-docx my-doc.md output.docx
 ```
 
 ---
@@ -52,12 +58,30 @@ version:        1.0
 author:         Fred Bloggs
 date:           2026-03-16
 classification: Internal
+docx-path:      '%MY_DOCS%\Reports\My Document.docx'
 ---
 
 # My Document
 
 Content goes here...
 ```
+
+### `docx-path`
+
+The optional `docx-path` key sets the default output path for `marksmith to-docx`.
+If you omit the output argument on the command line, the path from front-matter is used.
+Environment variables are expanded automatically (`%VAR%` on Windows, `$VAR` on Linux/macOS).
+
+> **Windows paths:** Always use **single quotes** around the value in YAML.
+> In double-quoted YAML strings, backslashes are escape characters and will corrupt the path.
+>
+> ```yaml
+> # ✅ Correct
+> docx-path: '%MY_DOCS%\Reports\myfile.docx'
+>
+> # ❌ Wrong — \R and \m etc. are YAML escape sequences
+> docx-path: "%MY_DOCS%\Reports\myfile.docx"
+> ```
 
 ---
 
@@ -87,7 +111,21 @@ output from a corporate template.
 
 ```bash
 pip install marksmith[template]
-marksmith convert my-doc.md output.docx --template company-template.docx
+marksmith to-docx my-doc.md output.docx --template company-template.docx
+```
+
+### `MARKSMITH_TEMPLATE` environment variable
+
+If you always use the same template, set `MARKSMITH_TEMPLATE` once in your
+environment and marksmith will use it automatically — no `--template` argument
+needed.  An explicit `--template` argument always takes priority.
+
+```bash
+# Windows (set permanently via System Properties → Environment Variables)
+$env:MARKSMITH_TEMPLATE = "C:\Users\You\Templates\company-template.docx"
+
+# Then just run — template is applied automatically
+marksmith to-docx my-doc.md
 ```
 
 ### How it works
@@ -229,8 +267,10 @@ internal link at publish time:
 
 | Action | Description |
 | --- | --- |
-| `convert` | Markdown → DOCX ✔️ |
-| `convert --template` | Merge into branded DOCX template ✔️ |
+| `to-docx` | Markdown → DOCX ✔️ |
+| `to-docx --template` | Merge into branded DOCX template ✔️ |
+| `to-docx` (docx-path) | Output path from front-matter `docx-path` key ✔️ |
+| `to-docx --directory` | Recursively convert all files with `docx-path` set ✔️ |
 | `to-confluence` | Publish Markdown to Confluence ✔️ |
 | `lint` | Validate Markdown style and structure |
 | `toc` | Generate / update table of contents |
